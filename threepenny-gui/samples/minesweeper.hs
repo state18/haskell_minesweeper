@@ -1,5 +1,4 @@
 import Control.Monad
-import Control.Monad
 import System.Random
 import System.IO.Unsafe
 import System.Console.ANSI
@@ -7,9 +6,26 @@ import Paths
 import Text.Printf
 import Data.List.Split
 import Data.Char
-import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny.Core
 
+
+-- TODO (11/14):
+-- Change interface to  pass around adjacency matrix and uncovered matrix as nested list of strings instead of integers.
+--  This will allow better representations of tiles such as bombs, flags, and covered tiles.
+--  Current key: uncovered tiles that aren't bombs will be displayed as number of neighboring bombs,
+--               covered tiles will either be blank spaces or X. (X seems like a 'dangerous' letter though, but color code will help)
+--               bombs will be B, or maybe M for mine
+-- Make a function that checks to see if the player has won (all tiles that aren't bombs are revealed)
+--  Note: This win condition will change if flagging is allowed in format -> f row,column and will require all bombs to be flagged AND
+--  all non-bomb tiles uncovered.
+-- Allow the removal of multiple tiles if player selects a tile with 0 neighboring bombs (depth first search?)
+--  My current thoughts of DFS are inefficient because of how the visited tiles will be tracked. If I could have some external structure that
+--  could be modified, then it wouldn't be inefficient. Regardless, it should still work even if it's redundant in checking some visited tiles.
+--  It should NOT infinitely loop, which is good.
+
+-- Optional/Extras: Flagging system as explained above. Flags will be represented by an F character. It is not possible to flag an uncovered tile.
+--  Also it is not possible to uncover a flagged tile. To toggle flagging, simply try to flag the same tile again.
+-- Add colored console output. The easiest way to do this, especially if another group member does it, is to just make a new function that expects
+-- a string (board to show). The function will be responsible for printing certain characters in different colors. (switch statement here?)
 
 {-----------------------------------------------------------------------------
     Main
@@ -25,6 +41,7 @@ main = do
 
 gameLoop :: [[Int]] -> [[Int]] -> IO ()
 gameLoop adjMat coveredMat = do
+    printBoard coveredMat
     putStrLn "Enter tile to uncover with format -> row,column "
     userInput <- getLine
     let parsedInput = splitOn "," userInput
@@ -41,8 +58,7 @@ gameLoop adjMat coveredMat = do
                 return ()
         else do
             let uncoveredTiles = uncoverTile  adjMat coveredMat (rowInput-1) (columnInput-1)
-            putStrLn "TODO"
-            printBoard uncoveredTiles
+            
             -- TODO Check for win/loss conditions! Also fix uncoverTile function to be both recursive and to replace
             -- the tiles with the corresponding ones in adjMat rather than 0
             gameLoop adjMat uncoveredTiles
@@ -53,7 +69,7 @@ boardWidth = 16
 boardHeight = 16
 tileNum = boardWidth * boardHeight
 -- Higher means bombs occur less
-bombChance = 4
+bombChance = 5
 
 genBombs :: (RandomGen g) => g -> [Int]
 genBombs gen =
