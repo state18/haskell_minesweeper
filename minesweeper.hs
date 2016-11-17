@@ -3,8 +3,11 @@ import System.Random
 import System.IO.Unsafe
 import System.Console.ANSI
 import Text.Printf
+import Text.Read
+import Data.List
 import Data.List.Split
 import Data.Char
+import Data.Typeable
 
 
 -- TODO (11/14):
@@ -16,7 +19,7 @@ import Data.Char
 -- Make a function that checks to see if the player has won (all tiles that aren't bombs are revealed) [DONE]
 --  Note: This win condition will change if flagging is allowed in format -> f row,column and will require all bombs to be flagged AND
 --  all non-bomb tiles uncovered.
--- Validate user input. try catch?
+-- Validate user input. try catch? [DONE]
 -- Allow the removal of multiple tiles if player selects a tile with 0 neighboring bombs (depth first search?)
 --  My current thoughts of DFS are inefficient because of how the visited tiles will be tracked. If I could have some external structure that
 --  could be modified, then it wouldn't be inefficient. Regardless, it should still work even if it's redundant in checking some visited tiles.
@@ -29,7 +32,23 @@ import Data.Char
 -- a string (board to show). The function will be responsible for printing certain characters in different colors. (switch statement here?)
 
 {-----------------------------------------------------------------------------
-    Main
+    Board Parameters
+------------------------------------------------------------------------------}
+
+canvasSize = 400
+boardWidth = 10
+boardHeight = 10
+-- Representation of mines/flags on the displayed board.
+bombString = "B"
+flagString = "F"
+coveredTileString = "X"
+tileNum = boardWidth * boardHeight
+-- Higher means bombs occur less
+bombChance = 5
+
+
+{-----------------------------------------------------------------------------
+    Main/Gameloop
 ------------------------------------------------------------------------------}
 
 
@@ -45,38 +64,59 @@ gameLoop adjMat coveredMat = do
     printBoard coveredMat
     putStrLn "Enter tile to uncover with format -> row,column "
     userInput <- getLine
-    let parsedInput = splitOn "," userInput
-    let rowInput = read $ head(parsedInput) :: Int
-    let columnInput = read $ head(tail(parsedInput)) :: Int
+    -- let parsedInput = splitOn "," userInput
+    -- let rowInput = read $ head(parsedInput) :: Int
+    -- let columnInput = read $ head(tail(parsedInput)) :: Int
+    let validatedInput = validateUserInput userInput
     -- It's game over if the chosen tile is a mine!
-    let uncoveredTiles = uncoverTile  adjMat coveredMat (rowInput-1) (columnInput-1)
-    if adjMat !! (rowInput-1) !! (columnInput-1) == bombString
-        then do printBoard adjMat
-                setSGR [SetColor Foreground Vivid Red]
-                putStrLn "BOOM!!! GAME OVER!"
+    if validatedInput == []
+        then do 
+                setSGR [SetColor Foreground Vivid Yellow]
+                putStrLn "Invalid Input! Try again."
                 setSGR [Reset]
-                return ()
-        else if checkForWin adjMat uncoveredTiles == True
-                then do printBoard adjMat
-                        setSGR [SetColor Foreground Vivid Green]
-                        putStrLn "Congratulations! You win!"
-                        setSGR [Reset]
-                        return ()                
-                else do    
-                    gameLoop adjMat uncoveredTiles
+                gameLoop adjMat coveredMat
+        else do        
+                let uncoveredTiles = uncoverTile  adjMat coveredMat (validatedInput !! 0 -1) (validatedInput !! 1 -1)
+                -- It's game over if the chosen tile is a mine!
+                if adjMat !! (validatedInput !! 0 -1) !! (validatedInput !! 1 -1) == bombString
+                    then do printBoard adjMat
+                            setSGR [SetColor Foreground Vivid Red]
+                            putStrLn "BOOM!!! GAME OVER!"
+                            setSGR [Reset]
+                            return ()
+                    else if checkForWin adjMat uncoveredTiles == True
+                            then do printBoard adjMat
+                                    setSGR [SetColor Foreground Vivid Green]
+                                    putStrLn "Congratulations! You win!"
+                                    setSGR [Reset]
+                                    return ()                
+                            else do    
+                                gameLoop adjMat uncoveredTiles
     
     
-canvasSize = 400
-boardWidth = 6
-boardHeight = 6
--- Representation of mines/flags on the displayed board.
-bombString = "B"
-flagString = "F"
-coveredTileString = "X"
 
-tileNum = boardWidth * boardHeight
--- Higher means bombs occur less
-bombChance = 5
+
+{-----------------------------------------------------------------------------
+    Validating User Input
+------------------------------------------------------------------------------}    
+validateUserInput :: String -> [Int]
+validateUserInput input = do
+    let splitInput = splitOn "," input
+    let rowInput = read $ head(splitInput) :: Int
+    let columnInput = read $ splitInput !! 1 :: Int
+
+    if isInfixOf "," input && length(splitInput) == 2 && isInteger(splitInput !! 0) && isInteger(splitInput !! 1) && rowInput > 0 && 
+       columnInput > 0 && rowInput <= boardHeight && columnInput <= boardWidth
+        then [rowInput,columnInput]
+        else []
+
+    
+isInteger :: String -> Bool
+isInteger text =
+    length(text) > 0 && sum (map bool2int (map isDigit text)) == length(text)
+{------------------------------------------------------------------------
+    Setup/Initialization
+-------------------------------------------------------------------------}
 
 genBombs :: (RandomGen g) => g -> [Int]
 genBombs gen =
@@ -131,15 +171,21 @@ getNeighborBombNum bombList x y
         
         
 
-    --Iterate through each tile, skip if -1
-    -- Else check each adjacent square (remember to check if on edge)
+--Iterate through each tile, skip if -1
+-- Else check each adjacent square (remember to check if on edge)
 -- Returns grid of 1's indicating covered tiles (size of game board)
 initialCoveredMap :: Int -> Int -> [[String]]
 initialCoveredMap height width =
     chunksOf height $ take (height * width) $ cycle [coveredTileString]  
 
+
+{------------------------------------------------------------------------
+    Game Events
+-------------------------------------------------------------------------}
+
 -- When user selects a tile, this script is called.
 -- adjacency map -> binary covered tiles -> pickedX -> pickedY -> new binary covered
+-- TODO Recursion will allow a DFS approach to uncover multiple tiles if user uncovers a 0.
 uncoverTile :: [[String]] -> [[String]] -> Int -> Int -> [[String]] 
 uncoverTile adjGrid covGrid x y = do
     let (yhead,_:ys) = splitAt y $ covGrid !! x
@@ -158,10 +204,6 @@ checkForWin adjMat uncoveredMat = do
     
     
     
-bool2int :: Bool -> Int
-bool2int b
-    | b == True = 1
-    | otherwise = 0
     
 ----------------------------------------------------------
 -- Formatting/Printing Functions
@@ -196,7 +238,15 @@ printBoardBody board (-1) =
 printBoardBody board row = 
     printf "%2d    " (boardHeight-row) ++ printBoardRow (board !! (boardHeight-row-1)) ++ 
         "\n" ++ (take (boardWidth*4 +8)(cycle "-") ++ "\n") ++ printBoardBody board (row-1) 
-    
+
+----------------------------------------------------------
+-- Other Utility Functions
+----------------------------------------------------------
+
+bool2int :: Bool -> Int
+bool2int b
+    | b == True = 1
+    | otherwise = 0        
 -- sgrExample = do
     -- setSGR [SetColor Foreground Vivid Red]
     -- setSGR [SetColor Background Vivid Blue]
