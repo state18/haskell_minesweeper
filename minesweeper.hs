@@ -11,15 +11,9 @@ import Data.Typeable
 
 
 -- TODO (11/14):
--- Change interface to  pass around adjacency matrix and uncovered matrix as nested list of strings instead of integers.
---  This will allow better representations of tiles such as bombs, flags, and covered tiles. [DONE]
---  Current key: uncovered tiles that aren't bombs will be displayed as number of neighboring bombs,
---               covered tiles will either be blank spaces or X. (X seems like a 'dangerous' letter though, but color code will help)
---               bombs will be B, or maybe M for mine
--- Make a function that checks to see if the player has won (all tiles that aren't bombs are revealed) [DONE]
 --  Note: This win condition will change if flagging is allowed in format -> f row,column and will require all bombs to be flagged AND
 --  all non-bomb tiles uncovered.
--- Validate user input. try catch? [DONE]
+
 -- Allow the removal of multiple tiles if player selects a tile with 0 neighboring bombs (depth first search?)
 --  My current thoughts of DFS are inefficient because of how the visited tiles will be tracked. If I could have some external structure that
 --  could be modified, then it wouldn't be inefficient. Regardless, it should still work even if it's redundant in checking some visited tiles.
@@ -27,7 +21,7 @@ import Data.Typeable
 
 -- Optional/Extras: Flagging system as explained above. Flags will be represented by an F character. It is not possible to flag an uncovered tile.
 --  Also it is not possible to uncover a flagged tile. To toggle flagging, simply try to flag the same tile again.
--- Let user choose board size (small medium large -> 5x5, 15x15, 30x30)
+-- Let user choose board size (small medium large -> 5x5, 15x15, 30x30) OR make a difficulty system that scales both board size and bomb frequency.
 -- Add colored console output. The easiest way to do this, especially if another group member does it, is to just make a new function that expects
 -- a string (board to show). The function will be responsible for printing certain characters in different colors. (switch statement here?)
 
@@ -36,10 +30,10 @@ import Data.Typeable
 ------------------------------------------------------------------------------}
 
 canvasSize = 400
-boardWidth = 10
-boardHeight = 10
+boardWidth = 3
+boardHeight = 3
 -- Representation of mines/flags on the displayed board.
-bombString = "B"
+bombString = "M"
 flagString = "F"
 coveredTileString = "X"
 tileNum = boardWidth * boardHeight
@@ -75,8 +69,10 @@ gameLoop adjMat coveredMat = do
                 putStrLn "Invalid Input! Try again."
                 setSGR [Reset]
                 gameLoop adjMat coveredMat
-        else do        
-                let uncoveredTiles = uncoverTile  adjMat coveredMat (validatedInput !! 0 -1) (validatedInput !! 1 -1)
+        else do 
+                let tilesToUncover = nub $ getTilesToRemove adjMat [] (validatedInput !! 0 -1) (validatedInput !! 1 -1)       
+                -- let uncoveredTiles = uncoverTile  adjMat coveredMat (validatedInput !! 0 -1) (validatedInput !! 1 -1)
+                let uncoveredTiles = uncoverTiles adjMat coveredMat tilesToUncover
                 -- It's game over if the chosen tile is a mine!
                 if adjMat !! (validatedInput !! 0 -1) !! (validatedInput !! 1 -1) == bombString
                     then do printBoard adjMat
@@ -191,8 +187,32 @@ uncoverTile adjGrid covGrid x y = do
     let (yhead,_:ys) = splitAt y $ covGrid !! x
     let (xhead,_:xs) = splitAt x covGrid
     xhead ++ (yhead ++ (adjGrid !! x !! y) : ys) : xs
+
+-- If the user's selected tile has 0 adjacent bombs, search around it and find others that should also
+-- be uncovered.    This function will return the visited list of tiles to uncover.
+getTilesToRemove :: [[String]] -> [[Int]]-> Int -> Int -> [[Int]]
+getTilesToRemove adjGrid visited x y = do
+    if x >= 0 && y >= 0 && x < boardHeight && y < boardWidth && adjGrid !! x !! y /= bombString && (elem [x,y] visited) == False
+        then do 
+                let newVisited = visited ++ [[x,y]]
+                if adjGrid !! x !! y == "0"
+                    then
+                            [[x,y]] ++
+                            (getTilesToRemove adjGrid newVisited (x-1) y) ++
+                            (getTilesToRemove adjGrid newVisited (x+1) y) ++
+                            (getTilesToRemove adjGrid newVisited x (y-1)) ++
+                            (getTilesToRemove adjGrid newVisited x (y+1))
+                else [[x,y]]
+        else []
+-- Given a list of tiles to remove, uncover them all
+uncoverTiles :: [[String]] -> [[String]] -> [[Int]] -> [[String]]
+uncoverTiles adjGrid covGrid [] = covGrid
+uncoverTiles adjGrid covGrid tiles = do
+    -- nub $ getTilesToRemove adjGrid [] x y    
+    uncoverTiles adjGrid (uncoverTile adjGrid covGrid ((head tiles) !! 0) ((head tiles) !! 1)) (tail tiles)
     
 
+  
 -- True if win, False if not
 checkForWin :: [[String]] -> [[String]] -> Bool
 checkForWin adjMat uncoveredMat = do
@@ -239,6 +259,9 @@ printBoardBody board row =
     printf "%2d    " (boardHeight-row) ++ printBoardRow (board !! (boardHeight-row-1)) ++ 
         "\n" ++ (take (boardWidth*4 +8)(cycle "-") ++ "\n") ++ printBoardBody board (row-1) 
 
+printColoredBoardBody :: [[String]] -> IO ()
+printColoredBoardBody board =
+    putStrLn ""
 ----------------------------------------------------------
 -- Other Utility Functions
 ----------------------------------------------------------
