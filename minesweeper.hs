@@ -14,6 +14,7 @@ import Data.Typeable
 --  Note: This win condition will change if flagging is allowed in format -> f row,column and will require all bombs to be flagged AND
 --  all non-bomb tiles uncovered.
 
+-- Possible speedup to the depth first search. Between each adjacent tile check, update visited based on previous?
 -- Optional/Extras: Flagging system as explained above. Flags will be represented by an F character. It is not possible to flag an uncovered tile.
 --  Also it is not possible to uncover a flagged tile. To toggle flagging, simply try to flag the same tile again.
 -- Let user choose board size (small medium large -> 5x5, 15x15, 30x30) OR make a difficulty system that scales both board size and bomb frequency.
@@ -23,13 +24,11 @@ import Data.Typeable
 {-----------------------------------------------------------------------------
     Board Parameters
 ------------------------------------------------------------------------------}
-
-canvasSize = 400
-boardWidth = 3
-boardHeight = 3
+boardWidth = 15
+boardHeight = 15
 -- Representation of mines/flags on the displayed board.
 bombString = "M"
-flagString = "F"
+-- flagString = "F"
 coveredTileString = "X"
 tileNum = boardWidth * boardHeight
 -- Higher means bombs occur less
