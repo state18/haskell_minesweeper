@@ -14,11 +14,6 @@ import Data.Typeable
 --  Note: This win condition will change if flagging is allowed in format -> f row,column and will require all bombs to be flagged AND
 --  all non-bomb tiles uncovered.
 
--- Allow the removal of multiple tiles if player selects a tile with 0 neighboring bombs (depth first search?)
---  My current thoughts of DFS are inefficient because of how the visited tiles will be tracked. If I could have some external structure that
---  could be modified, then it wouldn't be inefficient. Regardless, it should still work even if it's redundant in checking some visited tiles.
---  It should NOT infinitely loop, which is good.
-
 -- Optional/Extras: Flagging system as explained above. Flags will be represented by an F character. It is not possible to flag an uncovered tile.
 --  Also it is not possible to uncover a flagged tile. To toggle flagging, simply try to flag the same tile again.
 -- Let user choose board size (small medium large -> 5x5, 15x15, 30x30) OR make a difficulty system that scales both board size and bomb frequency.
