@@ -24,15 +24,15 @@ import Data.Typeable
 {-----------------------------------------------------------------------------
     Board Parameters
 ------------------------------------------------------------------------------}
-boardWidth = 15
-boardHeight = 15
+boardWidth = 10
+boardHeight = 10
 -- Representation of mines/flags on the displayed board.
 bombString = "M"
 -- flagString = "F"
 coveredTileString = "X"
 tileNum = boardWidth * boardHeight
 -- Higher means bombs occur less
-bombChance = 5
+bombChance = 7
 
 
 {-----------------------------------------------------------------------------
@@ -190,14 +190,23 @@ getTilesToRemove adjGrid visited x y = do
         then do 
                 let newVisited = visited ++ [[x,y]]
                 if adjGrid !! x !! y == "0"
-                    then
-                            [[x,y]] ++
-                            (getTilesToRemove adjGrid newVisited (x-1) y) ++
-                            (getTilesToRemove adjGrid newVisited (x+1) y) ++
-                            (getTilesToRemove adjGrid newVisited x (y-1)) ++
-                            (getTilesToRemove adjGrid newVisited x (y+1))
-                else [[x,y]]
-        else []
+                    then do
+                            --[[x,y]] ++
+                            --(getTilesToRemove adjGrid newVisited (x-1) y) ++
+                            --(getTilesToRemove adjGrid newVisited (x+1) y) ++
+                            --(getTilesToRemove adjGrid newVisited x (y-1)) ++
+                            --(getTilesToRemove adjGrid newVisited x (y+1))
+                            
+                            let topNeighbor = getTilesToRemove adjGrid newVisited (x-1) y 
+                            let bottomNeighbor = getTilesToRemove adjGrid topNeighbor (x+1) y 
+                            let leftNeighbor = getTilesToRemove adjGrid bottomNeighbor x (y-1)
+                            let rightNeighbor = getTilesToRemove adjGrid leftNeighbor x (y+1)
+                            let topLeft = getTilesToRemove adjGrid rightNeighbor (x-1) (y-1)
+                            let topRight = getTilesToRemove adjGrid topLeft (x-1) (y+1)
+                            let bottomLeft = getTilesToRemove adjGrid topRight (x+1) (y-1)
+                            [[x,y]] ++ (getTilesToRemove adjGrid bottomLeft (x+1) (y+1))
+                else newVisited
+        else visited
 -- Given a list of tiles to remove, uncover them all
 uncoverTiles :: [[String]] -> [[String]] -> [[Int]] -> [[String]]
 uncoverTiles adjGrid covGrid [] = covGrid
