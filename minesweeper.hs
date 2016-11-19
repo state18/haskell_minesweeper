@@ -7,19 +7,6 @@ import Text.Read
 import Data.List
 import Data.List.Split
 import Data.Char
-import Data.Typeable
-
-
--- TODO (11/14):
---  Note: This win condition will change if flagging is allowed in format -> f row,column and will require all bombs to be flagged AND
---  all non-bomb tiles uncovered.
-
--- Possible speedup to the depth first search. Between each adjacent tile check, update visited based on previous?
--- Optional/Extras: Flagging system as explained above. Flags will be represented by an F character. It is not possible to flag an uncovered tile.
---  Also it is not possible to uncover a flagged tile. To toggle flagging, simply try to flag the same tile again.
--- Let user choose board size (small medium large -> 5x5, 15x15, 30x30) OR make a difficulty system that scales both board size and bomb frequency.
--- Add colored console output. The easiest way to do this, especially if another group member does it, is to just make a new function that expects
--- a string (board to show). The function will be responsible for printing certain characters in different colors. (switch statement here?)
 
 {-----------------------------------------------------------------------------
     Board Parameters
@@ -28,7 +15,6 @@ boardWidth = 10
 boardHeight = 10
 -- Representation of mines/flags on the displayed board.
 bombString = "M"
--- flagString = "F"
 coveredTileString = "X"
 tileNum = boardWidth * boardHeight
 -- Higher means bombs occur less
@@ -44,8 +30,10 @@ main :: IO ()
 main = do
     -- Pass initial board state to the gameLoop
     gameLoop setupBoard $ initialCoveredMap boardHeight boardWidth
-    
-
+    -- Stop after player wins or loses game.
+    putStrLn "Press enter to exit..."
+    userExit <- getLine
+    putStrLn "See you next time!"
 
 gameLoop :: [[String]] -> [[String]] -> IO ()
 gameLoop adjMat coveredMat = do
@@ -78,7 +66,7 @@ gameLoop adjMat coveredMat = do
                             then do printBoard adjMat
                                     setSGR [SetColor Foreground Vivid Green]
                                     putStrLn "Congratulations! You win!"
-                                    setSGR [Reset]
+                                    setSGR [Reset]                                   
                                     return ()                
                             else do    
                                 gameLoop adjMat uncoveredTiles
@@ -262,9 +250,6 @@ printBoardBody board row =
     printf "%2d    " (boardHeight-row) ++ printBoardRow (board !! (boardHeight-row-1)) ++ 
         "\n" ++ (take (boardWidth*4 +8)(cycle "-") ++ "\n") ++ printBoardBody board (row-1) 
 
-printColoredBoardBody :: [[String]] -> IO ()
-printColoredBoardBody board =
-    putStrLn ""
 ----------------------------------------------------------
 -- Other Utility Functions
 ----------------------------------------------------------
