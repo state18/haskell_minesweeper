@@ -11,15 +11,19 @@ import Data.Char
 {-----------------------------------------------------------------------------
     Board Parameters
 ------------------------------------------------------------------------------}
-boardWidth = 10
-boardHeight = 10
+--boardWidth = 10
+--boardHeight = 10
 -- Representation of mines/flags on the displayed board.
 bombString = "M"
 coveredTileString = "X"
-tileNum = boardWidth * boardHeight
+--tileNum = boardWidth * boardHeight
 -- Higher means bombs occur less
-bombChance = 7
+--bombChance = 7
 
+data BoardParameters = BoardParameters { width :: Int
+                                       , height :: Int
+                                       , bombChance :: Int
+                                       }
 
 {-----------------------------------------------------------------------------
     Main/Gameloop
@@ -29,47 +33,57 @@ bombChance = 7
 main :: IO ()
 main = do
     -- Pass initial board state to the gameLoop
-    gameLoop setupBoard $ initialCoveredMap boardHeight boardWidth
-    -- Stop after player wins or loses game.
-    putStrLn "Press enter to exit..."
-    userExit <- getLine
-    putStrLn "See you next time!"
+    putStrLn "Hello! Please enter a difficulty level from 1 to 3, with higher being harder..."
+    diffInput <- getLine
+    if validateDifficultyInput diffInput == 0
+        then do 
+                setSGR [SetColor Foreground Vivid Yellow]
+                putStrLn "Invalid Input! Try again."
+                setSGR [Reset]
+                main 
+        else do
+                let boardParams = genDifficultyParameters $ validateDifficultyInput diffInput
+                gameLoop (setupBoard boardParams)(initialCoveredMap boardParams) boardParams
+                -- Stop after player wins or loses game.
+                putStrLn "Press enter to exit..."
+                userExit <- getLine
+                putStrLn "See you next time!"
 
-gameLoop :: [[String]] -> [[String]] -> IO ()
-gameLoop adjMat coveredMat = do
-    printBoard coveredMat
+gameLoop :: [[String]] -> [[String]] -> BoardParameters -> IO ()
+gameLoop adjMat coveredMat boardParams = do
+    printBoard coveredMat boardParams
     putStrLn "Enter tile to uncover with format -> row,column "
     userInput <- getLine
     -- let parsedInput = splitOn "," userInput
     -- let rowInput = read $ head(parsedInput) :: Int
     -- let columnInput = read $ head(tail(parsedInput)) :: Int
-    let validatedInput = validateUserInput userInput
+    let validatedInput = validateUserInput userInput boardParams
     -- It's game over if the chosen tile is a mine!
     if validatedInput == []
         then do 
                 setSGR [SetColor Foreground Vivid Yellow]
                 putStrLn "Invalid Input! Try again."
                 setSGR [Reset]
-                gameLoop adjMat coveredMat
+                gameLoop adjMat coveredMat boardParams
         else do 
-                let tilesToUncover = nub $ getTilesToRemove adjMat [] (validatedInput !! 0 -1) (validatedInput !! 1 -1)       
+                let tilesToUncover = nub $ getTilesToRemove adjMat [] (validatedInput !! 0 -1) (validatedInput !! 1 -1) boardParams       
                 -- let uncoveredTiles = uncoverTile  adjMat coveredMat (validatedInput !! 0 -1) (validatedInput !! 1 -1)
                 let uncoveredTiles = uncoverTiles adjMat coveredMat tilesToUncover
                 -- It's game over if the chosen tile is a mine!
                 if adjMat !! (validatedInput !! 0 -1) !! (validatedInput !! 1 -1) == bombString
-                    then do printBoard adjMat
+                    then do printBoard adjMat boardParams
                             setSGR [SetColor Foreground Vivid Red]
                             putStrLn "BOOM!!! GAME OVER!"
                             setSGR [Reset]
                             return ()
-                    else if checkForWin adjMat uncoveredTiles == True
-                            then do printBoard adjMat
+                    else if checkForWin adjMat uncoveredTiles boardParams == True
+                            then do printBoard adjMat boardParams
                                     setSGR [SetColor Foreground Vivid Green]
                                     putStrLn "Congratulations! You win!"
                                     setSGR [Reset]                                   
                                     return ()                
                             else do    
-                                gameLoop adjMat uncoveredTiles
+                                gameLoop adjMat uncoveredTiles boardParams
     
     
 
@@ -77,14 +91,21 @@ gameLoop adjMat coveredMat = do
 {-----------------------------------------------------------------------------
     Validating User Input
 ------------------------------------------------------------------------------}    
-validateUserInput :: String -> [Int]
-validateUserInput input = do
+validateDifficultyInput :: String -> Int
+validateDifficultyInput input =
+    if length input == 1 && (input == "1" || input == "2" || input == "3")
+        then do read $ input :: Int
+        else do
+                0
+                
+validateUserInput :: String -> BoardParameters -> [Int]
+validateUserInput input boardParams = do
     let splitInput = splitOn "," input
     let rowInput = read $ head(splitInput) :: Int
     let columnInput = read $ splitInput !! 1 :: Int
 
     if isInfixOf "," input && length(splitInput) == 2 && isInteger(splitInput !! 0) && isInteger(splitInput !! 1) && rowInput > 0 && 
-       columnInput > 0 && rowInput <= boardHeight && columnInput <= boardWidth
+       columnInput > 0 && rowInput <= height boardParams && columnInput <= width boardParams
         then [rowInput,columnInput]
         else []
 
@@ -96,21 +117,29 @@ isInteger text =
     Setup/Initialization
 -------------------------------------------------------------------------}
 
-genBombs :: (RandomGen g) => g -> [Int]
-genBombs gen =
-    randomRs (1,bombChance) gen
+genDifficultyParameters :: Int -> BoardParameters
+genDifficultyParameters diff =
+    case diff of
+        1 -> BoardParameters 8 8 5
+        2 -> BoardParameters 15 15 5
+        3 -> BoardParameters 30 30 7       
+
+
+genBombs :: (RandomGen g) => g -> BoardParameters -> [Int]
+genBombs gen boardParams =
+    randomRs (1,(bombChance boardParams)) gen
 
 -- printbombs=do
     -- randomGen <- newStdGen
     -- print $ take 50 $ genBombs randomGen
-setupBoard :: [[String]]
-setupBoard = do
+setupBoard :: BoardParameters -> [[String]]
+setupBoard boardParams = do
     -- Get random numbers, indicating bombs
-    let bombList = map filterBombs [mod x bombChance | x <- take tileNum $ genBombs(unsafePerformIO(newStdGen))];
+    let bombList = map filterBombs [mod x (bombChance boardParams) | x <- take ((width boardParams) * (height boardParams)) $ genBombs(unsafePerformIO(newStdGen)) boardParams];
     -- Turn list into list of lists (list of rows)
-    let bombGrid = chunksOf boardHeight bombList
+    let bombGrid = chunksOf (height boardParams) bombList
     --Determine adjacency matrix (how many bombs are around a given tile?)
-    genAdjacency bombGrid 
+    genAdjacency bombGrid boardParams
     
     -- Afterwards, we can place the GUI images of the uncovered tiles.
     
@@ -126,24 +155,24 @@ filterBombs b
     | b /= 0 = 0
     | otherwise = -1
     
-genAdjacency :: [[Int]] -> [[String]]
-genAdjacency bombGrid = do
+genAdjacency :: [[Int]] -> BoardParameters -> [[String]]
+genAdjacency bombGrid boardParams =
     -- Iterate through all tiles and check for adjacent bombs
-    chunksOf boardHeight [getNeighborBombNum bombGrid x y | x <- [0..boardHeight-1], y <- [0..boardWidth-1]]
+    chunksOf (height boardParams) [getNeighborBombNum bombGrid x y boardParams | x <- [0..(height boardParams)-1], y <- [0..(width boardParams)-1]]
 
 -- Given a grid and coordinate pair, returns # of neighboring bombs   
 -- grid -> row -> column -> number of adjacent bombs 
-getNeighborBombNum :: [[Int]] -> Int -> Int -> String
-getNeighborBombNum bombList x y
+getNeighborBombNum :: [[Int]] -> Int -> Int -> BoardParameters -> String
+getNeighborBombNum bombList x y boardParams
     | bombList !! x !! y == -1 = bombString
     | otherwise = show (sum $ map bool2int [x /= 0 && y /= 0 && bombList !! (x-1) !! (y-1) == -1,
-    x /= 0 && y /= boardWidth-1 && bombList !! (x-1) !! (y+1) == -1,
-    x /= boardHeight-1 && y /= 0 && bombList !! (x+1) !! (y-1) == -1,
-    x /= boardHeight-1 && y /= boardWidth-1 && bombList !! (x+1) !! (y+1) == -1,
+    x /= 0 && y /= (width boardParams)-1 && bombList !! (x-1) !! (y+1) == -1,
+    x /= (height boardParams)-1 && y /= 0 && bombList !! (x+1) !! (y-1) == -1,
+    x /= (height boardParams)-1 && y /= (width boardParams)-1 && bombList !! (x+1) !! (y+1) == -1,
     x /= 0 && bombList !! (x-1) !! y == -1,
-    x /= boardHeight-1 && bombList !! (x+1) !! y == -1,
+    x /= (height boardParams)-1 && bombList !! (x+1) !! y == -1,
     y /= 0 && bombList !! x !! (y-1) == -1,
-    y /= boardWidth-1 && bombList !! x !! (y+1) == -1])
+    y /= (width boardParams)-1 && bombList !! x !! (y+1) == -1])
         
         
         
@@ -152,9 +181,9 @@ getNeighborBombNum bombList x y
 --Iterate through each tile, skip if -1
 -- Else check each adjacent square (remember to check if on edge)
 -- Returns grid of 1's indicating covered tiles (size of game board)
-initialCoveredMap :: Int -> Int -> [[String]]
-initialCoveredMap height width =
-    chunksOf height $ take (height * width) $ cycle [coveredTileString]  
+initialCoveredMap :: BoardParameters -> [[String]]
+initialCoveredMap boardParams =
+    chunksOf (height boardParams) $ take (height boardParams * width boardParams) $ cycle [coveredTileString]  
 
 
 {------------------------------------------------------------------------
@@ -172,9 +201,9 @@ uncoverTile adjGrid covGrid x y = do
 
 -- If the user's selected tile has 0 adjacent bombs, search around it and find others that should also
 -- be uncovered.    This function will return the visited list of tiles to uncover.
-getTilesToRemove :: [[String]] -> [[Int]]-> Int -> Int -> [[Int]]
-getTilesToRemove adjGrid visited x y = do
-    if x >= 0 && y >= 0 && x < boardHeight && y < boardWidth && adjGrid !! x !! y /= bombString && (elem [x,y] visited) == False
+getTilesToRemove :: [[String]] -> [[Int]]-> Int -> Int -> BoardParameters -> [[Int]]
+getTilesToRemove adjGrid visited x y boardParams = do
+    if x >= 0 && y >= 0 && x < (height boardParams) && y < (width boardParams) && adjGrid !! x !! y /= bombString && (elem [x,y] visited) == False
         then do 
                 let newVisited = visited ++ [[x,y]]
                 if adjGrid !! x !! y == "0"
@@ -185,14 +214,14 @@ getTilesToRemove adjGrid visited x y = do
                             --(getTilesToRemove adjGrid newVisited x (y-1)) ++
                             --(getTilesToRemove adjGrid newVisited x (y+1))
                             
-                            let topNeighbor = getTilesToRemove adjGrid newVisited (x-1) y 
-                            let bottomNeighbor = getTilesToRemove adjGrid topNeighbor (x+1) y 
-                            let leftNeighbor = getTilesToRemove adjGrid bottomNeighbor x (y-1)
-                            let rightNeighbor = getTilesToRemove adjGrid leftNeighbor x (y+1)
-                            let topLeft = getTilesToRemove adjGrid rightNeighbor (x-1) (y-1)
-                            let topRight = getTilesToRemove adjGrid topLeft (x-1) (y+1)
-                            let bottomLeft = getTilesToRemove adjGrid topRight (x+1) (y-1)
-                            [[x,y]] ++ (getTilesToRemove adjGrid bottomLeft (x+1) (y+1))
+                            let topNeighbor = getTilesToRemove adjGrid newVisited (x-1) y boardParams
+                            let bottomNeighbor = getTilesToRemove adjGrid topNeighbor (x+1) y boardParams
+                            let leftNeighbor = getTilesToRemove adjGrid bottomNeighbor x (y-1) boardParams
+                            let rightNeighbor = getTilesToRemove adjGrid leftNeighbor x (y+1) boardParams
+                            let topLeft = getTilesToRemove adjGrid rightNeighbor (x-1) (y-1) boardParams
+                            let topRight = getTilesToRemove adjGrid topLeft (x-1) (y+1) boardParams
+                            let bottomLeft = getTilesToRemove adjGrid topRight (x+1) (y-1) boardParams
+                            [[x,y]] ++ (getTilesToRemove adjGrid bottomLeft (x+1) (y+1)) boardParams
                 else newVisited
         else visited
 -- Given a list of tiles to remove, uncover them all
@@ -205,13 +234,13 @@ uncoverTiles adjGrid covGrid tiles = do
 
   
 -- True if win, False if not
-checkForWin :: [[String]] -> [[String]] -> Bool
-checkForWin adjMat uncoveredMat = do
+checkForWin :: [[String]] -> [[String]] -> BoardParameters -> Bool
+checkForWin adjMat uncoveredMat boardParams = do
     -- Count # of covered tiles and # of bomb tiles.
     -- Player wins if (width * height) - numCovered == numBombs
     let numBombs = sum $ map bool2int [x == bombString | x <- concat adjMat]
     let numUnCovered = sum $ map bool2int [x /= coveredTileString | x <- concat uncoveredMat]
-    boardWidth * boardHeight - numUnCovered == numBombs
+    (width boardParams) * (height boardParams) - numUnCovered == numBombs
     
     
     
@@ -229,26 +258,26 @@ printBoardRow a =
     "|" ++ printf "%2s " (head a) ++ (printBoardRow (tail a))
     
 -- Responsible for displaying board to the user between actions    
-printBoard :: [[String]] -> IO ()
-printBoard bombGrid = do
-    printBoardTop boardWidth
-    putStrLn $ printBoardBody bombGrid (boardHeight-1)
+printBoard :: [[String]] -> BoardParameters -> IO ()
+printBoard bombGrid boardParams = do
+    printBoardTop boardParams
+    putStrLn $ printBoardBody bombGrid boardParams ((height boardParams)-1)
     
-printBoardTop :: Int -> IO ()
-printBoardTop width = do
+printBoardTop :: BoardParameters -> IO ()
+printBoardTop boardParams = do
     
-    putStrLn $ "      " ++ printBoardRow (map show [1..width])
+    putStrLn $ "      " ++ printBoardRow (map show [1..(width boardParams)])
     setSGR [SetColor Foreground Vivid Blue]
-    putStrLn $ take (boardWidth*4 +8)(cycle "-")
+    putStrLn $ take ((width boardParams)*4 +8)(cycle "-")
     setSGR [Reset]
 
 -- formats row and column data into a nice package to be displayed to user.
-printBoardBody :: [[String]] -> Int -> String
-printBoardBody board (-1) =
+printBoardBody :: [[String]] -> BoardParameters -> Int -> String
+printBoardBody board boardParams (-1) =
     ""
-printBoardBody board row = 
-    printf "%2d    " (boardHeight-row) ++ printBoardRow (board !! (boardHeight-row-1)) ++ 
-        "\n" ++ (take (boardWidth*4 +8)(cycle "-") ++ "\n") ++ printBoardBody board (row-1) 
+printBoardBody board boardParams row = 
+    printf "%2d    " ((height boardParams)-row) ++ printBoardRow (board !! ((height boardParams)-row-1)) ++ 
+        "\n" ++ (take ((width boardParams)*4 +8)(cycle "-") ++ "\n") ++ printBoardBody board boardParams (row-1) 
 
 ----------------------------------------------------------
 -- Other Utility Functions
