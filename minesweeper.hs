@@ -106,13 +106,13 @@ isInteger text =
 {------------------------------------------------------------------------
     Setup/Initialization
 -------------------------------------------------------------------------}
-
+-- Setup width, height, and bomb spawn rate
 genDifficultyParameters :: Int -> BoardParameters
 genDifficultyParameters diff =
     case diff of
-        1 -> BoardParameters 8 8 5
+        1 -> BoardParameters 8 8 6
         2 -> BoardParameters 15 15 5
-        3 -> BoardParameters 30 30 7       
+        3 -> BoardParameters 30 30 5       
 
 
 genBombs :: (RandomGen g) => g -> BoardParameters -> [Int]
@@ -231,24 +231,58 @@ printBoardRow a =
 printBoard :: [[String]] -> BoardParameters -> IO ()
 printBoard bombGrid boardParams = do
     printBoardTop boardParams
-    putStrLn $ printBoardBody bombGrid boardParams ((height boardParams)-1)
+    let stringToPrint = printBoardBody bombGrid boardParams ((height boardParams)-1)
+    printColoredCharacter stringToPrint
     
 printBoardTop :: BoardParameters -> IO ()
 printBoardTop boardParams = do
     
     putStrLn $ "      " ++ printBoardRow (map show [1..(width boardParams)])
-    setSGR [SetColor Foreground Vivid Blue]
+    setSGR [SetColor Foreground Dull Yellow]
+    putStrLn ""
     putStrLn $ take ((width boardParams)*4 +8)(cycle "-")
     setSGR [Reset]
 
 -- Formats row and column data into a nice package to be displayed to user.
+-- Note that "n" is a signal for the color coded reader to print on a new line
 printBoardBody :: [[String]] -> BoardParameters -> Int -> String
-printBoardBody board boardParams (-1) =
-    ""
-printBoardBody board boardParams row = 
-    printf "%2d    " ((height boardParams)-row) ++ printBoardRow (board !! ((height boardParams)-row-1)) ++ 
-        "\n" ++ (take ((width boardParams)*4 +8)(cycle "-") ++ "\n") ++ printBoardBody board boardParams (row-1) 
+printBoardBody board boardParams (-1) = ""
+printBoardBody board boardParams row =
+    printf "%2d    " ((height boardParams)-row) ++ printBoardRow (board !! ((height boardParams)-row-1)) ++ "n" ++ (take ((width boardParams)*4 +8)(cycle "-") ++ "n") ++ printBoardBody board boardParams (row-1) 
 
+-- Determines which color a character should be and prints it.
+printColoredCharacter :: String -> IO ()    
+printColoredCharacter [] = return()
+printColoredCharacter input = do
+    let stringInput = [head input]
+    case stringInput of
+        "|" -> do setSGR [SetColor Foreground Dull Yellow]
+                  putStr stringInput
+                  setSGR [Reset]
+        
+        "-" -> do setSGR [SetColor Foreground Dull Yellow]
+                  putStr stringInput
+                  setSGR [Reset]
+                  
+        "X" -> do setSGR [SetColor Foreground Vivid Green]
+                  putStr stringInput
+                  setSGR [Reset]
+                  
+        "M" -> do setSGR [SetColor Foreground Vivid Red]
+                  putStr stringInput
+                  setSGR [Reset]  
+                  
+        "n" -> putStrLn ""    
+        
+        _   -> do putStr stringInput 
+                  setSGR [Reset]
+        
+        
+    
+    printColoredCharacter $ tail input
+        
+
+     
 ----------------------------------------------------------
 -- Other Utility Functions
 ----------------------------------------------------------
