@@ -8,12 +8,20 @@ import Data.List
 import Data.List.Split
 import Data.Char
 
+{--
+**********************************************************************************************
+                                        MineSweeper
+Group Members: Samuel Tate, Alexander de la Sierra, Aditi Helekar, Kalyan Chakravarthy Chavali
+**********************************************************************************************
+--}
+
 {-----------------------------------------------------------------------------
     Board Parameters
 ------------------------------------------------------------------------------}
--- Representation of mines/flags on the displayed board.
+-- Representation of mines and uncovered tiles on the displayed board.
 bombString = "M"
 coveredTileString = "X"
+-- Custom type to determine qualities of the board such as width, height, and bomb spawn rate.
 data BoardParameters = BoardParameters { width :: Int
                                        , height :: Int
                                        , bombChance :: Int
